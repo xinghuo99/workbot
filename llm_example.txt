@@ -1,0 +1,89 @@
+"""
+示例：通过传参方式构建 LLM，api_key / model / api_base 使用传入值，其余使用默认值。
+
+运行方式：
+    python demo_llm.py
+"""
+
+from codebot.core.config import AppConfig
+from codebot.core.llm import LLMClient
+
+
+def main():
+    # ═══════════════════════════════════════════════════════════
+    # 方式1：直接通过 AppConfig.from_params_or_env 传参
+    # 传入 api_key / model / api_base，其余全部走默认值
+    # ═══════════════════════════════════════════════════════════
+    config = AppConfig.from_params_or_env(
+        provider="deepseek",              # 服务商名称
+        api_key="sk-deepseek-xxxxxxxxxxxx",  # 你的 API Key
+        api_base="https://api.deepseek.com/v1",  # API 地址
+        model="deepseek-chat",            # 模型名称
+    )
+
+    # 创建目录（workspace / skills / output / logs / codes）
+    config.ensure_dirs()
+
+    # 构建 LLM 客户端
+    llm = LLMClient(config.llm)
+
+    # 调用 LLM
+    messages = [
+        {"role": "system", "content": "你是一个Python专家。"},
+        {"role": "user", "content": "用一句话解释什么是装饰器。"},
+    ]
+    result = llm.chat(messages)
+    print(f"回答: {result['content']}")
+    print(f"Token 用量: {result['usage']}")
+
+
+    # ═══════════════════════════════════════════════════════════
+    # 方式2：单独构建 LLMConfig，再传入 AppConfig
+    # 适合需要精细控制 LLM 参数的场景
+    # ═══════════════════════════════════════════════════════════
+    from codebot.core.config import LLMConfig
+
+    llm_config = LLMConfig.from_params_or_env(
+        provider="openai",
+        api_key="sk-openai-xxxxxxxxxxxx",
+        api_base="https://api.openai.com/v1",
+        model="gpt-4o",
+        temperature=0.7,    # 可选，默认 0.3
+        max_tokens=4096,    # 可选，默认 8192
+        timeout=60,         # 可选，默认 120
+    )
+
+    config2 = AppConfig.from_params_or_env(llm=llm_config)
+    config2.ensure_dirs()
+
+    llm2 = LLMClient(config2.llm)
+    result2 = llm2.chat(messages)
+    print(f"回答2: {result2['content']}")
+
+
+    # ═══════════════════════════════════════════════════════════
+    # 方式3：直接用 LLMConfig 构建独立的 LLMClient
+    # 不依赖 AppConfig，最轻量
+    # ═══════════════════════════════════════════════════════════
+    llm_config3 = LLMConfig.from_params_or_env(
+        api_key="sk-your-key",
+        api_base="https://api.openai.com/v1",
+        model="gpt-4o-mini",
+    )
+    llm3 = LLMClient(llm_config3)
+    result3 = llm3.chat(messages)
+    print(f"回答3: {result3['content']}")
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+### 优先级说明
+以 model 参数为例，三种来源的优先级从高到低：
+
+优先级 来源 示例 1 (最高) 传入参数 model="deepseek-chat" 2 默认值 "gpt-4o" (dataclass 字段默认值) 3 (最低) 环境变量 CODEBOT_MODEL 环境变量（仅当默认值为空时才读取，如 api_key ）
+
+所以上面的代码中， api_key 、 model 、 api_base 使用传入的值； temperature 、 max_tokens 、 timeout 等未传入的参数使用默认值 0.3 、 8192 、 120 。
